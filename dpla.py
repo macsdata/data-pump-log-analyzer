@@ -4,7 +4,7 @@ Script Name:    dpla.py
 Description:    Data Pump Log Analyzer
                 Parse and analyze Oracle Data Pump log files
                 Requires Python 3.6
-                Copyright (c) 2024 Marcus Doeringer / macsdata
+                Copyright (c) 2024-2025 Marcus Doeringer / macsdata
                 Licensed under the Universal Permissive License v 1.0
 Usage:          Run this script from the command line 
                 python3 dpla.py or ./dpla.py
@@ -12,7 +12,7 @@ Usage:          Run this script from the command line
 Author:         Marcus Doeringer
 """
 
-__version__ = "0.9.2"
+__version__ = "0.9.3"
 
 import re
 import argparse
@@ -96,7 +96,7 @@ class OutputRedirector:
                 if overwrite != 'y':
                     pmesg("Operation aborted. Output will not be redirected.", 'info', 1)
             try:
-                self.file = open(self.filename, 'w')
+                self.file = open(self.filename, 'w', encoding='utf-8')
                 sys.stdout = self.file
             except IOError as e:
                 pmesg(f"Unable to write to file '{self.filename}':\n {str(e)}", 'error', 1)
@@ -565,7 +565,7 @@ def html_css():
     return """
     <style>
         :root {
-            --color-primary: #086c91;
+            --color-primary: #0d6886;
             --bg-color: #EDEFF1;
             --text-color: #2c3e50;
             --header-bg-color: var(--color-primary);
@@ -598,7 +598,7 @@ def html_css():
             --collicon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'><path fill='rgba(189, 195, 199, 1)' d='M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z'></path></svg>");
         }
         [data-theme='dark'] {
-            --color-primary: #1cbff8;
+            --color-primary: #1cbedd; 
             --bg-color: #21232A;
             --text-color: #f0f0f0;
             --header-bg-color: #0F1318;
@@ -786,6 +786,11 @@ def html_css():
             text-align: center;
             padding: 20px;
         }
+        .table-container {
+            overflow-x: auto;
+            max-width: 100%;
+            border-radius: 8px;
+        }
         table {
             width: 100%;
             border-collapse: separate;
@@ -806,6 +811,11 @@ def html_css():
         table th.text-column,
         table td.text-column {
             text-align: left;
+            max-width: 500px;
+            min-width: 150px;
+            word-wrap: break-word;
+            word-break: break-word;
+            hyphens: auto;
         }
         th {
             background-color: var(--table-bg-color);
@@ -1391,7 +1401,7 @@ def html_table(headers, rows, alignments, summary=None, tabname=None):
     :param tabname: Table Name
     """
     # Start the HTML table
-    html_output = f'\n<table id="{tabname}">\n'
+    html_output = f'\n<div class="table-container">\n<table id="{tabname}">\n'
 
     # Add headers
     html_output += '    <thead>\n        <tr>\n'
@@ -1431,7 +1441,7 @@ def html_table(headers, rows, alignments, summary=None, tabname=None):
     html_output += '    </tfoot>\n'
 
     # Close the table
-    html_output += '</table>'
+    html_output += '</table>\n</div>'
     return html_output
 
 
