@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-03-11
+
+### Fixed
+- #3, Wrong sorting order for worker id
+- Changed non breaking space in html report
+- Removed duplicate updateRowStyles function
+- Fixed search/filter in html report
+- Added utf-8 encoding when reading the log file 
+
 ## [0.9.3] - 2025-04-24
 
 ### Fixed

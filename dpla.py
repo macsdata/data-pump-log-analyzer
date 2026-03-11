@@ -4,7 +4,7 @@ Script Name:    dpla.py
 Description:    Data Pump Log Analyzer
                 Parse and analyze Oracle Data Pump log files
                 Requires Python 3.6
-                Copyright (c) 2024-2025 Marcus Doeringer / macsdata
+                Copyright (c) 2024-2026 Marcus Doeringer / macsdata
                 Licensed under the Universal Permissive License v 1.0
 Usage:          Run this script from the command line 
                 python3 dpla.py or ./dpla.py
@@ -12,7 +12,7 @@ Usage:          Run this script from the command line
 Author:         Marcus Doeringer
 """
 
-__version__ = "0.9.3"
+__version__ = "1.0.0"
 
 import re
 import argparse
@@ -1379,7 +1379,7 @@ def html_report(report, files_info, html_sections, html_toc):
     <footer>
         <div class="footer-content">
             <p>Data Pump Log Analyzer v{__version__}</p>
-            <p>Copyright &copy; 2024 <a href="https://github.com/macsdata">macsdata</a></p>
+            <p>Copyright &copy; 2024-2026 <a href="https://github.com/macsdata">macsdata</a></p>
         </div>
     </footer>
     </html>
