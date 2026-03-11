@@ -1580,7 +1580,7 @@ def main():
 
     # Read and process the file
     for filepath, filets in files_valid:
-        with open(filepath, "r") as file_handle:
+        with open(filepath, "r", encoding='utf-8') as file_handle:
             for line in file_handle:
                 # Get operation and startime
                 if not report['operation']:
