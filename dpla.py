@@ -1022,11 +1022,12 @@ def html_js():
 
     function searchTable(tableId) {
         const table = document.getElementById(tableId);
-        const input = table.parentElement.querySelector('.searchInput');
+        const section = table.closest('.info-section');
+        const input = section.querySelector('.searchInput');
         const filter = '*' + input.value.toLowerCase() + '*';
         const rows = table.querySelectorAll('tbody tr');
         let visibleCount = 0;
-        let totals = Array(rows[0].cells.length - 1).fill(0);
+        let totals = rows.length > 0 ? Array(rows[0].cells.length - 1).fill(0) : [];
 
         rows.forEach(row => {
             const cell = row.cells[0];
@@ -1047,7 +1048,8 @@ def html_js():
     }
 
     function updateTableVisibility(table, visibleCount) {
-        const noResultsMessage = table.parentElement.querySelector('.noResults');
+        const section = table.closest('.info-section');
+        const noResultsMessage = section.querySelector('.noResults');
         table.style.display = visibleCount === 0 ? 'none' : '';
         noResultsMessage.style.display = visibleCount === 0 ? 'block' : 'none';
     }
@@ -1065,11 +1067,12 @@ def html_js():
     function matchesFilter(text, filter) {
         if (filter === '**') return true;
 
-        const terms = filter.toLowerCase().split('*').filter(Boolean);
+        const terms = filter.split('*').filter(Boolean);
         let startIndex = 0;
+        const lowerText = text.toLowerCase();
 
         return terms.every(term => {
-            const index = text.toLowerCase().indexOf(term, startIndex);
+            const index = lowerText.indexOf(term, startIndex);
             if (index === -1) return false;
             startIndex = index + term.length;
             return true;
