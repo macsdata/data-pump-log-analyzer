@@ -1020,16 +1020,6 @@ def html_js():
         themeToggleIcon.textContent = theme === 'light' ? '☀️' : '🌙';
     }
 
-    function updateRowStyles(table) {
-        const visibleRows = Array.from(table.querySelectorAll('tbody tr'))
-            .filter(row => row.style.display !== 'none');
-
-        visibleRows.forEach((row, index) => {
-            row.classList.toggle('odd-row', index % 2 === 0);
-            row.classList.toggle('even-row', index % 2 !== 0);
-        });
-    }
-
     function searchTable(tableId) {
         const table = document.getElementById(tableId);
         const input = table.parentElement.querySelector('.searchInput');
