@@ -1349,11 +1349,11 @@ def html_report(report, files_info, html_sections, html_toc):
                 <span class="value">{report['jobname'] or "Not found"}</span>
                 <span class="label">Status:</span>
                 <span class="value {report['opclass']}">{report['opstatus'] or "Not found"}</span>
-                <span class="label">&nbsp&nbspProcessing:</span>
+                <span class="label">&nbsp;&nbsp;Processing:</span>
                 <span class="value">{report['processing']}</span>
                 <span class="label">Errors:</span>
                 <span class="value {report['errclass']}">{report['errors']}</span>
-                <span class="label">&nbsp&nbspORA- Messages:</span>
+                <span class="label">&nbsp;&nbsp;ORA- Messages:</span>
                 <span class="value {report['oraclass']}">{report['oramsgs']}</span>
                 <span class="label">Start Time:</span>
                 <span class="value">{report['starttime'] or "Not found"}</span>
