@@ -450,7 +450,7 @@ def safe_sort(items, sort_key, header, section, reverse=True):
         # Sort by the dictionary key (first column)
         sorted_items = sorted(
             items.items(),
-            key=lambda x: x[0],
+            key=lambda x: (int(x[0]) if x[0].isdigit() else x[0]),
             reverse=False
         )
     else:
@@ -1128,6 +1128,9 @@ def html_js():
             if (dataType === 'int' || dataType === 'size') {
                 aValue = parseFloat(aValue);
                 bValue = parseFloat(bValue);
+            } else if (columnIndex === 0) {
+                aValue = /^\d+$/.test(aValue) ? parseFloat(aValue) : aValue;
+                bValue = /^\d+$/.test(bValue) ? parseFloat(bValue) : bValue;
             }
 
             if (sortDirection === 'asc') {
