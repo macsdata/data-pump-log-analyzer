@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-05-18
+
+### Fixed
+- SyntaxWarning: "\d" in newer python releases
+
 ## [1.0.0] - 2026-03-11
 
 ### Fixed

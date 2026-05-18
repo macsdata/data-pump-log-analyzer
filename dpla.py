@@ -6,13 +6,13 @@ Description:    Data Pump Log Analyzer
                 Requires Python 3.6
                 Copyright (c) 2024-2026 Marcus Doeringer / macsdata
                 Licensed under the Universal Permissive License v 1.0
-Usage:          Run this script from the command line 
+Usage:          Run this script from the command line
                 python3 dpla.py or ./dpla.py
                 Use -h or --help to show all options
 Author:         Marcus Doeringer
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 import re
 import argparse
@@ -598,7 +598,7 @@ def html_css():
             --collicon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'><path fill='rgba(189, 195, 199, 1)' d='M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z'></path></svg>");
         }
         [data-theme='dark'] {
-            --color-primary: #1cbedd; 
+            --color-primary: #1cbedd;
             --bg-color: #21232A;
             --text-color: #f0f0f0;
             --header-bg-color: #0F1318;
@@ -1122,8 +1122,8 @@ def html_js():
                 aValue = parseFloat(aValue);
                 bValue = parseFloat(bValue);
             } else if (columnIndex === 0) {
-                aValue = /^\d+$/.test(aValue) ? parseFloat(aValue) : aValue;
-                bValue = /^\d+$/.test(bValue) ? parseFloat(bValue) : bValue;
+                aValue = /^\\d+$/.test(aValue) ? parseFloat(aValue) : aValue;
+                bValue = /^\\d+$/.test(bValue) ? parseFloat(bValue) : bValue;
             }
 
             if (sortDirection === 'asc') {
@@ -1729,7 +1729,7 @@ def main():
                             report['objects'] += om_count
                         else:
                             object_stats[om_type]['seconds'] += om_seconds
-                            object_stats[om_type]['workers'].add(om_worker) 
+                            object_stats[om_type]['workers'].add(om_worker)
 
         dict_list = ['worker_stats', 'object_stats']
         fresult = file_valid(report)
