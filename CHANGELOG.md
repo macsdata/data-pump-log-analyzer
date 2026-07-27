@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-27
+
+### Added
+- Order option: --order {asc,desc}
+- Dynamic, unsortable # rank column at the beginning of every table output for cli and html report
+- Better metric detection and warn if metrics are incomplete
+
 ## [1.0.1] - 2026-05-18
 
 ### Fixed

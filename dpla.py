@@ -12,7 +12,7 @@ Usage:          Run this script from the command line
 Author:         Marcus Doeringer
 """
 
-__version__ = "1.0.1"
+__version__ = "1.1.0"
 
 import re
 import argparse
@@ -156,6 +156,7 @@ def parse_arguments():
 
     # Optional additional options
     parser.add_argument('--sort', metavar='<column>', type=str, help="specify column name to sort the tables by")
+    parser.add_argument('--order', choices=['asc', 'desc'], help="specify ascending or descending sort order")
     parser.add_argument('--top', metavar='<N|all>', type=str, help="specify number of top rows to display (use 'all' for no limit)")
     parser.add_argument('--output', metavar='<filename>', type=str, help="specify output file. For HTML output, use .htm or .html extension")
 
@@ -255,10 +256,12 @@ def file_metrics(dict_list):
     empty_dicts = [dict_name for dict_name in dict_list
                    if is_defaultdict_empty(globals().get(dict_name, {}))]
 
-    is_valid = len(empty_dicts) == 0
+    is_valid = len(empty_dicts) < len(dict_list)
+    is_complete = len(empty_dicts) == 0
 
     return {
         'valid': is_valid,
+        'complete': is_complete,
         'empty_dicts': empty_dicts
     }
 
@@ -373,7 +376,8 @@ def print_table(headers, rows, alignments, summary=None):
     """
     # Calculate column widths
     col_widths = [
-        max(len(str(item)) for item in [header] + [row[idx] for row in rows]) + 4
+        max(len(str(item)) for item in [header] + [row[idx] for row in rows])
+        + (0 if header == '#' else 4)
         for idx, header in enumerate(headers)
     ]
 
@@ -405,9 +409,9 @@ def print_table(headers, rows, alignments, summary=None):
     return ptable
 
 
-def section_description(sort, top, filter):
+def section_description(sort, order, top, filter):
     """Formats the output if filter, sort or top are set"""
-    desc = [f"sorted by {sort}"]
+    desc = [f"sorted by {sort}", "ascending" if order == 'asc' else "descending"]
 
     if top is not None:
         desc.append(f"top {top}")
@@ -434,10 +438,10 @@ def find_matching_column(sort_key, sample_dict, header):
     return None
 
 
-def safe_sort(items, sort_key, header, section, reverse=True):
+def safe_sort(items, sort_key, header, section, order=None):
     """Sort items based on argument or default value"""
     if not items:
-        return [], None
+        return [], None, None
 
     sample_dict = next(iter(items.values()))
     matching_column = find_matching_column(sort_key, sample_dict, header)
@@ -446,12 +450,19 @@ def safe_sort(items, sort_key, header, section, reverse=True):
         # If no matching column is found, use the default value for that section
         matching_column = defaults[section]['sort']
 
+    if order:
+        reverse = order == 'desc'
+    else:
+        # Preserve existing behavior: identity columns ascending, statistics descending
+        reverse = matching_column != header
+    actual_order = 'desc' if reverse else 'asc'
+
     if matching_column == header:
         # Sort by the dictionary key (first column)
         sorted_items = sorted(
             items.items(),
             key=lambda x: (int(x[0]) if x[0].isdigit() else x[0]),
-            reverse=False
+            reverse=reverse
         )
     else:
         # Sort by the matching column in the dictionary values
@@ -460,7 +471,7 @@ def safe_sort(items, sort_key, header, section, reverse=True):
             key=lambda x: safe_get(x[1], matching_column),
             reverse=reverse
         )
-    return sorted_items, matching_column
+    return sorted_items, matching_column, actual_order
 
 
 def print_section(args, toprows, section, sectitle, colname, stats, filter=None):
@@ -485,19 +496,21 @@ def print_section(args, toprows, section, sectitle, colname, stats, filter=None)
         filtered_stats = stats
 
     # Sort rows
-    sorted_rows, actual_sort = safe_sort(filtered_stats, sort, colname, section)
+    sorted_rows, actual_sort, actual_order = safe_sort(
+        filtered_stats, sort, colname, section, args.order
+    )
 
     # Apply top
     final_rows = sorted_rows[:top]
 
     print_section_header(f"{sectitle.upper()}")
-    print(section_description(actual_sort, top, filter))
+    print(section_description(actual_sort, actual_order, top, filter))
 
     # Assume all items have the same keys, use the first item to determine fields
     if final_rows:
         fields = list(final_rows[0][1].keys())  # Dynamically get fields from the stats dictionary
-        headers = [colname.title()] + [field.capitalize() for field in fields]
-        alignments = ['<'] + ['>' for _ in fields]
+        headers = ['#', colname.title()] + [field.capitalize() for field in fields]
+        alignments = ['>', '<'] + ['>' for _ in fields]
 
         # Calculate totals
 
@@ -518,12 +531,15 @@ def print_section(args, toprows, section, sectitle, colname, stats, filter=None)
 
         # Prepare rows for table
         rows = [
-            [row[0]] + [format_size(row[1][field]) if field == 'size' else row[1][field] for field in fields]
-            for row in final_rows
+            [rank, row[0]] + [
+                format_size(row[1][field]) if field == 'size' else row[1][field]
+                for field in fields
+            ]
+            for rank, row in enumerate(final_rows, start=1)
         ]
 
         # Prepare summary
-        summary = ["Total"] + [
+        summary = ["", "Total"] + [
             format_size(totals[field]) if field == 'size' else totals[field] for field in fields
         ]
 
@@ -827,6 +843,14 @@ def html_css():
             font-weight: 600;
             padding-right: 30px;
         }
+        th[data-sortable="false"] {
+            cursor: default;
+            padding-right: 15px;
+        }
+        .rank-column {
+            width: 1%;
+            white-space: nowrap;
+        }
         tbody tr.odd-row {
             background-color: var(--row-odd-color);
         }
@@ -992,6 +1016,7 @@ def html_js():
 
             // Set up click listeners for all th elements
             table.querySelectorAll('th').forEach(th => {
+                if (th.getAttribute('data-sortable') === 'false') return;
                 th.addEventListener('click', function() {
                     const columnIndex = this.cellIndex;
                     const type = this.getAttribute('data-type') || 'str'; // Get type from data attribute
@@ -1027,17 +1052,17 @@ def html_js():
         const filter = '*' + input.value.toLowerCase() + '*';
         const rows = table.querySelectorAll('tbody tr');
         let visibleCount = 0;
-        let totals = rows.length > 0 ? Array(rows[0].cells.length - 1).fill(0) : [];
+        let totals = rows.length > 0 ? Array(rows[0].cells.length - 2).fill(0) : [];
 
         rows.forEach(row => {
-            const cell = row.cells[0];
+            const cell = row.cells[1];
             const shouldDisplay = matchesFilter(cell.textContent, filter);
 
             row.style.display = shouldDisplay ? '' : 'none';
             if (shouldDisplay) {
                 visibleCount++;
-                for (let i = 1; i < row.cells.length; i++) {
-                    totals[i - 1] += parseFloat(row.cells[i].textContent.replace(/,/g, '')) || 0;
+                for (let i = 2; i < row.cells.length; i++) {
+                    totals[i - 2] += parseFloat(row.cells[i].textContent.replace(/,/g, '')) || 0;
                 }
             }
         });
@@ -1059,6 +1084,8 @@ def html_js():
             .filter(row => row.style.display !== 'none');
 
         visibleRows.forEach((row, index) => {
+            const rankCell = row.querySelector('.rank-column');
+            if (rankCell) rankCell.textContent = index + 1;
             row.classList.remove('odd-row', 'even-row');
             row.classList.add(index % 2 === 0 ? 'odd-row' : 'even-row');
         });
@@ -1121,7 +1148,7 @@ def html_js():
             if (dataType === 'int' || dataType === 'size') {
                 aValue = parseFloat(aValue);
                 bValue = parseFloat(bValue);
-            } else if (columnIndex === 0) {
+            } else if (columnIndex === 1) {
                 aValue = /^\\d+$/.test(aValue) ? parseFloat(aValue) : aValue;
                 bValue = /^\\d+$/.test(bValue) ? parseFloat(bValue) : bValue;
             }
@@ -1402,7 +1429,10 @@ def html_table(headers, rows, alignments, summary=None, tabname=None):
     # Add headers
     html_output += '    <thead>\n        <tr>\n'
     for idx, header in enumerate(headers):
-        if alignments[idx] == '<':
+        if idx == 0:
+            html_output += '           <th data-sortable="false" class="rank-column">#</th>\n'
+            continue
+        elif alignments[idx] == '<':
             datatype = ' data-type="str"'
             align = ' class="text-column"'
         else:
@@ -1416,7 +1446,10 @@ def html_table(headers, rows, alignments, summary=None, tabname=None):
     for row in rows:
         html_output += '        <tr>'
         for idx, item in enumerate(row):
-            align = ' class="text-column"' if alignments[idx] == '<' else ''
+            if idx == 0:
+                align = ' class="rank-column"'
+            else:
+                align = ' class="text-column"' if alignments[idx] == '<' else ''
             if isinstance(item, tuple):
                 # Store the MB value with the data-value label
                 formatted_size, original_mb = item
@@ -1459,7 +1492,7 @@ def html_section(args, section, sectitle, colname, stats, filter=None):
         pmesg(f"Filter {filter} will be ignored.", 'info')
     filtered_stats = stats
 
-    sorted_rows, actual_sort = safe_sort(filtered_stats, sort, colname, section)
+    sorted_rows, _, _ = safe_sort(filtered_stats, sort, colname, section, args.order)
     final_rows = sorted_rows
 
     tabname = f'tab-{section}'
@@ -1477,8 +1510,8 @@ def html_section(args, section, sectitle, colname, stats, filter=None):
     # Assume all items have the same keys, use the first item to determine fields
     if final_rows:
         fields = list(final_rows[0][1].keys())  # Dynamically get fields from the stats dictionary
-        headers = [colname.title()] + [field.capitalize() for field in fields]
-        alignments = ['<'] + ['>' for _ in fields]
+        headers = ['#', colname.title()] + [field.capitalize() for field in fields]
+        alignments = ['>', '<'] + ['>' for _ in fields]
 
         # Calculate totals
         # Initialize totals with appropriate starting values
@@ -1498,8 +1531,8 @@ def html_section(args, section, sectitle, colname, stats, filter=None):
 
         # Prepare rows for table
         rows = []
-        for row in final_rows:
-            formatted_row = [row[0]]  # First column (usually the name or identifier)
+        for rank, row in enumerate(final_rows, start=1):
+            formatted_row = [rank, row[0]]
             for field in fields:
                 if field == 'size':
                     size_mb = row[1][field]  # Original size in MB
@@ -1510,7 +1543,7 @@ def html_section(args, section, sectitle, colname, stats, filter=None):
             rows.append(formatted_row)
 
         # Prepare summary
-        summary = ["Total"] + [
+        summary = ["", "Total"] + [
             format_size(totals[field]) if field == 'size' else totals[field] for field in fields
         ]
 
@@ -1731,7 +1764,7 @@ def main():
                             object_stats[om_type]['seconds'] += om_seconds
                             object_stats[om_type]['workers'].add(om_worker)
 
-        dict_list = ['worker_stats', 'object_stats']
+        dict_list = ['schema_stats', 'object_stats']
         fresult = file_valid(report)
         mresult = file_metrics(dict_list)
 
@@ -1750,6 +1783,16 @@ def main():
             files_info.append((filepath, filets, False, 'False', Colors.YELLOW, 'highlight warn'))
         else:
             files_info.append((filepath, filets, True, 'True', '', ''))
+            if not mresult['complete']:
+                empty_dicts = ', '.join(
+                    item.replace('_stats', '').replace('_', ' ').title()
+                    for item in mresult['empty_dicts']
+                )
+                pmesg(
+                    f"Metrics detected, but the logfile has incomplete metric data: "
+                    f"{empty_dicts} statistics missing",
+                    'warning'
+                )
 
     # Calculate Report Variables
     report['schemas'] = len(schema_stats)
