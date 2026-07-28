@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-28
+
+### Added
+- New parameter section: -p / --parameter option
+
+### Changed
+- Section column width in html report
+
 ## [1.1.0] - 2026-07-27
 
 ### Added

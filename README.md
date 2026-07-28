@@ -38,9 +38,10 @@ python3 dpla.py <logfile> [options]
 -t [TABLE ...], --table [TABLE ...]
                       show table details (optionally specify table(s) as a filter
 -i, --instance        show instance details (starting 21c)
+-p, --parameter       show Data Pump parameters
 -a, --all             show complete output
 --sort <column>       specify column name to sort the tables by
---order {asc,desc}    specify the sort order (ascending or descending)
+--order {asc,desc}    specify ascending or descending sort order
 --top <N|all>         specify number of top rows to display (use 'all' for no limit)
 --output <filename>   specify output file. For HTML output, use .htm or .html extension
 ```

@@ -12,10 +12,11 @@ Usage:          Run this script from the command line
 Author:         Marcus Doeringer
 """
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 import re
 import argparse
+import html
 import os
 import sys
 from collections import defaultdict
@@ -79,6 +80,10 @@ object_re = re.compile(
     r'(?P<seconds>\d+) seconds'
 )
 otype_re = re.compile(r"Processing object type (?P<otype>.+)$")
+parfile_re = re.compile(r';;;\s+parfile:\s+(?P<name>[A-Za-z][A-Za-z0-9_]*)=(?P<value>.*)$')
+parfile_cont_re = re.compile(r';;;\s+[_*]parfile:\s?(?P<value>.*)$')
+starting_args_re = re.compile(r'Starting\s+".+"\."[^"]+":\s+(?P<args>.+?)\s*$')
+parameter_re = re.compile(r'(?P<name>[A-Za-z][A-Za-z0-9_]*)=(?P<value>.*)$')
 
 
 # Classes
@@ -152,6 +157,7 @@ def parse_arguments():
     parser.add_argument('-s', '--schema', metavar='SCHEMA', nargs='*', help="show schema details (optionally specify schema(s) as a filter")
     parser.add_argument('-t', '--table', metavar='TABLE', nargs='*', help="show table details (optionally specify table(s) as a filter")
     parser.add_argument('-i', '--instance', action='store_true', help="show instance details (starting 21c)")
+    parser.add_argument('-p', '--parameter', action='store_true', help="show Data Pump parameters")
     parser.add_argument('-a', '--all', action='store_true', help="show complete output")
 
     # Optional additional options
@@ -320,7 +326,50 @@ def print_aligned(label, value, width=20, color=Colors.RESET):
         print(f"{indent}{label:<{width}}{value}")
 
 
-def print_report(report, files_info):
+def parse_starting_parameters(line):
+    """Extract key/value parameters from a Data Pump Starting line."""
+    match = starting_args_re.search(line)
+    if not match:
+        return []
+
+    tokens = []
+    token = []
+    quote = None
+    escaped = False
+    for char in match.group('args'):
+        if escaped:
+            token.append(char)
+            escaped = False
+        elif char == '\\':
+            token.append(char)
+            escaped = True
+        elif quote:
+            token.append(char)
+            if char == quote:
+                quote = None
+        elif char in ('"', "'"):
+            token.append(char)
+            quote = char
+        elif char.isspace():
+            if token:
+                tokens.append(''.join(token))
+                token = []
+        else:
+            token.append(char)
+    if token:
+        tokens.append(''.join(token))
+
+    parameters = []
+    for token in tokens:
+        parameter_match = parameter_re.fullmatch(token)
+        if parameter_match:
+            name = parameter_match.group('name')
+            value = parameter_match.group('value')
+            parameters.append((name, value))
+    return parameters
+
+
+def print_report(report, files_info, show_parameters=False):
     """
     Print the text report
 
@@ -363,6 +412,11 @@ def print_report(report, files_info):
         print_aligned("Objects:", report['objects'] or "Not found", max_label_length)
         print_aligned("Data Objects:", report['dobjects'] or "Not found", max_label_length)
         print_aligned("Overall Size:", report['totalsize'] or "Not found", max_label_length)
+
+        if show_parameters:
+            print_section_header("Parameters")
+            for name, value in report['parameters']:
+                print(f"{indent}{name}={value}")
 
 
 def print_table(headers, rows, alignments, summary=None):
@@ -690,7 +744,7 @@ def html_css():
         }
         .section-content {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 0.7fr 1.3fr;
             gap: 10px;
         }
         .section-contenttab {
@@ -699,6 +753,10 @@ def html_css():
             font-weight: bold;
         }
         .value {
+        }
+        .parameter-value {
+            overflow-wrap: anywhere;
+            min-width: 0;
         }
         .highlight {
             display: inline-block;
@@ -1264,7 +1322,7 @@ def html_js():
     """
 
 
-def html_report(report, files_info, html_sections, html_toc):
+def html_report(report, files_info, html_sections, html_toc, show_parameters=False):
     """
     Provides the complete HTML report output
 
@@ -1276,6 +1334,22 @@ def html_report(report, files_info, html_sections, html_toc):
 
     logfile_content = ''
     dp_content = ''
+    parameters_content = ''.join(
+        f"""
+                <span class="label">{html.escape(name)}</span>
+                <span class="value parameter-value">{html.escape(value)}</span>
+        """
+        for name, value in report['parameters']
+    ) if show_parameters else ''
+    parameters_section = f"""
+        <section id="parameters" class="info-section">
+            <h2><span class="collapse-toggle"></span>Parameters</h2>
+            <div class="section-content">
+                {parameters_content}
+            </div>
+        </section>
+    """ if parameters_content else ''
+    parameters_toc = '<li><a href="#parameters">Parameters</a></li>' if parameters_content else ''
 
     for file, timestamp, metrics, mtext, mcolor, mclass in files_info:
         logfile_content = f"""
@@ -1329,6 +1403,7 @@ def html_report(report, files_info, html_sections, html_toc):
                 <li><a href="#logfile-details">Logfile Details</a></li>
                 <li><a href="#operation-details">Operation Details</a></li>
                 <li><a href="#data-processing">Data Processing</a></li>
+                {parameters_toc}
             </ul>
             <hr>
             <ul>
@@ -1394,6 +1469,7 @@ def html_report(report, files_info, html_sections, html_toc):
             </div>
         </section>
         {dp_content}
+        {parameters_section}
         {html_sections}
     </main>
     <button id="scrollToTop" title="Go to top">
@@ -1612,12 +1688,31 @@ def main():
         'dobjects': 0,
         'totalsize_mb': 0,
         'totalsize': 0,
+        'parameters': [],
     }
 
     # Read and process the file
     for filepath, filets in files_valid:
         with open(filepath, "r", encoding='utf-8') as file_handle:
+            last_parfile_parameter = None
             for line in file_handle:
+                # Get parameters recorded in a parfile block
+                parfile_match = parfile_re.search(line)
+                if parfile_match:
+                    name = parfile_match.group('name')
+                    value = parfile_match.group('value').strip()
+                    report['parameters'].append([name, value])
+                    last_parfile_parameter = len(report['parameters']) - 1
+                else:
+                    parfile_cont_match = parfile_cont_re.search(line)
+                    if parfile_cont_match and last_parfile_parameter is not None:
+                        report['parameters'][last_parfile_parameter][1] += parfile_cont_match.group('value').strip()
+
+                # Add parameters recorded on the command line
+                if "Starting " in line:
+                    for name, value in parse_starting_parameters(line):
+                        report['parameters'].append([name, value])
+
                 # Get operation and startime
                 if not report['operation']:
                     operation_match = operation_re.search(line)
@@ -1841,6 +1936,8 @@ def main():
         tableargs = args.table
 
     # Report Output
+    show_parameters = bool(report['parameters'] and (args.parameter or args.all))
+
     sections = [
         ('oramsg', 'ora- messages details', 'message', oramsg_stats, args.error),
         ('object', 'object details', 'object', object_stats, args.object),
@@ -1863,11 +1960,11 @@ def main():
             pmesg(f"--top {args.top} will be ignored.", 'info')
 
         with OutputRedirector(args.output):
-            print(html_report(report, files_info, html_sections, html_toc))
+            print(html_report(report, files_info, html_sections, html_toc, show_parameters))
 
     else:
         with OutputRedirector(args.output):
-            print_report(report, files_info)
+            print_report(report, files_info, show_parameters)
             for section_id, section_title, colname, section_stats, section_filter in sections:
                 if args.all or section_filter or (isinstance(section_filter, list) and len(section_filter) >= 0):
                     print_section(args, toprows, section_id, section_title, colname, section_stats, section_filter)
